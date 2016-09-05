@@ -17,29 +17,28 @@ public class StatisticalAnalyser {
     }
     // Link weight stats [0] - mean / [1] - standard deviation
     public double[] linkWeightStats() {
-        double linksWeight = 0.0;
-        double[] stats = new double[2];
-        double mean = 0.0;
-        double std = 0.0;
 
-        for (Edge link : graph.getEdges())
-            linksWeight += (double) link.weight();
-
-        mean = linksWeight / (double) graph.getEdges().size();
-        stats[0] = mean;
+        double mean = averageLinkWeight();
 
         double temp = 0.0;
         for (Edge link : graph.getEdges())
-            temp += ((double) link.weight() - mean)
-                    * ((double) link.weight() - mean);
+            temp += (link.weight() - mean) * (link.weight() - mean);
 
         double variance = (temp / (double) (graph.getEdges().size()));
         // size-1 for sample. We have population
+        double standardVariation = Math.sqrt(variance);
 
-        std = Math.sqrt(variance);
-        stats[1] = std;
-
+        double[] stats = new double[2];
+        stats[0] = mean;
+        stats[1] = standardVariation;
         return stats;
+    }
+
+    private double averageLinkWeight() {
+        double accumulatedWeight = 0.0;
+        for (Edge link : graph.getEdges())
+            accumulatedWeight += link.weight();
+        return accumulatedWeight / (double) graph.getEdges().size();
     }
 
     // Calculates the regions stats - [0] - Max / [1] - Min / [2] - Average
@@ -66,20 +65,21 @@ public class StatisticalAnalyser {
         return stats;
     }
 
-    public double linkWeightMean(ArrayList<ArrayList<Path>> paths) {
-        double acc = 0;
+    public double averageLinkWeight(ArrayList<ArrayList<Path>> paths) {
+        double totalOfLoadedEdges = 0;
         for(ArrayList<Path> alp : paths) {
             Path path = alp.get(0);
-            acc += ((double)path.size()-1.0)*path.volume();
+            totalOfLoadedEdges += (double) path.size() - 1.0;
         }
-        return acc/(double)graph.getEdges().size();
+        return totalOfLoadedEdges / (double)graph.getEdges().size();
     }
 
-    public double pathWeightMean(ArrayList<ArrayList<Path>> paths) {
-        double acc = 0;
+    public double averagePathWeight(ArrayList<ArrayList<Path>> paths) {
+        int AccumulatedPathLength = 0;
         for(ArrayList<Path> alp : paths)
-            acc += (double) (alp.get(0).size()-1);
-        return acc*linkWeightMean(paths)/(double)paths.size();
+            AccumulatedPathLength += (alp.get(0).size()-1);
+        double AccumulatedPathWeight = (double) AccumulatedPathLength * averageLinkWeight(paths);
+        return AccumulatedPathWeight /(double)paths.size();
     }
 
     public double[] pathWeightStats(ArrayList<ArrayList<Path>> paths) {
