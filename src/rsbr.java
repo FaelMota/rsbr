@@ -10,7 +10,6 @@ public class rsbr {
     public static void main(String[] args) {
 
         String topologyFile = null;
-        String volumePath = null;
         boolean shouldMerge = true;
         int dim = 4;
         int rows = dim;
@@ -22,44 +21,55 @@ public class rsbr {
             columns = Integer.parseInt(args[1]);
         }
 
-        for (double faultyPercentage : faultyPercentages) {
 
-            if (!hasEnoughEdges(rows, columns, faultyPercentage))
-                break;
-
-            System.out.println("Generating graph");
-            Graph graph = (topologyFile != null) ?
-                    FromFileGraphBuilder.generateGraph(topologyFile) :
-                    RandomFaultyGraphBuilder.generateGraph(rows, columns, (int)Math.ceil(faultyPercentage*numberOfEdges(rows, columns)));
-
-            System.out.println("Isolated?: " + graph.hasIsolatedCores());
-
-            System.out.println(" - SR Section");
-            GraphRestrictions restrictions = SBRSection(graph);
-
-            System.out.println("Paths Computation");
-            List<List<Path>> allMinimalPaths = new PathFinder(graph, restrictions).minimalPathsForAllPairs();
-
-            System.out.println(" - Paths Selection Section");
-            RBR rbr = new RBR(graph);
-
-            Map<Path, Double> volumes = null;
-            if (volumePath != null) {
-                File commvol = new File(volumePath);
-                if (commvol.exists()) {
-                    System.out
-                            .println("Getting volumes from " + volumePath);
-                    volumes = communicationVolume(allMinimalPaths, commvol, graph);
-                }
+        for(dim = 4; dim <= 4; dim++) {
+            double faultyPercentage = 0.0;
+            File perTopology = new File(""+dim+"x"+dim+".txt");
+            BufferedWriter bw = null;
+            try {
+                bw = new BufferedWriter(new FileWriter(perTopology));
             }
+            catch (IOException e) {
+                e.printStackTrace();
+            }
+            while(hasEnoughEdges(dim, dim, faultyPercentage))
+            {
+                double mean = 0.0;
+                for(int iterations = 1; iterations <= 100; ) {
 
-            List<List<Path>> chosenPaths = selectPaths(allMinimalPaths, graph, volumes);
+                    Graph graph = (topologyFile != null) ?
+                            FromFileGraphBuilder.generateGraph(topologyFile) :
+                            RandomFaultyGraphBuilder.generateGraph(rows, columns, (int) Math.ceil(faultyPercentage * numberOfEdges(rows, columns)));
 
-            System.out.println(" - RBR Section");
-            RBRSection(shouldMerge, graph, allMinimalPaths, rbr, "full"+"_"+faultyPercentage);
-            RBRSection(shouldMerge, graph, chosenPaths, rbr, "custom"+"_"+faultyPercentage);
-            StatisticalAnalyser statistics = new StatisticalAnalyser(graph, rbr.regions(), volumes);
-            printResults(chosenPaths, statistics);
+                    if (graph.hasIsolatedCores())
+                        continue;
+
+                    GraphRestrictions restrictions = SBRSection(graph);
+
+                    List<List<Path>> allMinimalPaths = new PathFinder(graph, restrictions).minimalPathsForAllPairs();
+
+                    RBR rbr = new RBR(graph);
+
+                    RBRSection(shouldMerge, graph, allMinimalPaths, rbr, "full" + "_" + faultyPercentage);
+                    StatisticalAnalyser statistics = new StatisticalAnalyser(graph, rbr.regions(), null);
+                    mean += statistics.maxNumberOfRegions();
+                    iterations++;
+                }
+                mean = mean/100;
+                try {
+                    bw.append(""+faultyPercentage+"\t"+mean+"\n");
+                }
+                catch (IOException e) {
+                    e.printStackTrace();
+                }
+                faultyPercentage += 0.05;
+            }
+            try {
+                bw.close();
+            }
+            catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
 
@@ -84,8 +94,8 @@ public class rsbr {
             assert rbr.reachabilityIsOk();
         }
 
-        System.out.println("Making Tables");
-        new RoutingTableGenerator(graph, rbr.regions()).doRoutingTable(fileSuffix);
+        /*System.out.println("Making Tables");
+        new RoutingTableGenerator(graph, rbr.regions()).doRoutingTable(fileSuffix);*/
     }
 
     private static int numberOfEdges(int rows, int columns) {
@@ -95,7 +105,7 @@ public class rsbr {
     private static List<List<Path>> selectPaths(List<List<Path>> paths, Graph g, Map<Path, Double> volumes) {
         List<List<Path>> chosenPaths = null;
         LinkWeightTracker lwTracker = new LinkWeightTracker(g, volumes);
-        int choice = 5;
+        int choice = 0;
         switch (choice) {
             case 0: // No selection (all paths)
                 chosenPaths = paths;
